@@ -1,0 +1,220 @@
+service: resources
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ap-northeast-1
+
+resources:
+  Resources:
+    # API Gateway - RestApi
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-apigateway-restapi.html
+    MatchmakerApiGW:
+      Type: AWS::ApiGateway::RestApi
+      Properties:
+        Name: MatchmakerApiGW
+
+    # Cognito - UserPool
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpool.html
+    MatchmakerCognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: GameLiftUnreal-UserPool
+
+    # Cognito - UserPoolClient
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpoolclient.html
+    MatchmakerCognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        UserPoolId:
+          Ref: MatchmakerCognitoUserPool
+        ClientName: GameLiftUnreal-LambdaLoginClient
+        ExplicitAuthFlow:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        GenerateSecret: false
+        CallbackURLs:
+          - https://aws.amazon.com
+        LogoutURLs:
+          - https://aws.amazon.com
+
+    # Cognito - UserPoolDomain
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpooldomain.html
+    MatchmakerCognitoUserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        UserPoolId:
+          Ref: MatchmakerCognitoUserPool
+        Domain: gameliftunreal-cog-mm
+
+    # DynamoDB - Table
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+
+    # チケットテーブル
+    MatchmakerTicketsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: MatchmakeingTickets
+        AttributeDefinitions:
+          - AttributeName: ID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ID
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TimeToLiveSpecification:
+          AttributeName: TTL
+          Enabled: true
+
+    # Playerテーブル
+    MatchmakerPlayersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: MatchmakingPlayers
+        AttributeDefinitions:
+          - AttributeName: ID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ID
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TimeToLiveSpecification:
+          AttributeName: TTL
+          Enabled: true
+
+    MatchmakerSNS:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: FlexMatchEventNotification
+        DisplayName: FlexMatchEventNotification
+        FifoTopic: true
+
+    MatchmakerSNSPolicy:
+      Type: AWS::SNS::TopicPolicy
+      Properties:
+        PolicyDocument:
+          Effect: Allow
+          Principal:
+            Service: gamelift.amazonaws.com
+          Action:
+            - SNS:Publish
+          Resource:
+            Fn::GetAtt:
+              - MatchmakerSNS
+              - Arn
+        Topics:
+          - Ref: MatchmakerSNS
+
+    # MatchmakingRuleSet
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-gamelift-matchmakingruleset.html
+    MatchmakerMatchmakingRuleSet:
+      Type: AWS::GameLift::MatchmakingRuleSet
+      Properties:
+        Name: GameLiftUnrealRuleSet
+        RuleSetBody: !Sub |
+          {
+            "name": "GameLiftUnrealRuleSet",
+            "ruleLanguageVersion": "1.0",
+            "teams": [{
+              "name": "MyTeam",
+              "minPlayers": 1,
+              "maxPlayers": 4
+            }]
+          }
+
+    # MatchmakingConfiguration
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-gamelift-matchmakingconfiguration.html
+    MatchmakerMatchmakingConfiguration:
+      Type: AWS::GameLift::MatchmakingConfiguration
+      Properties:
+        Name: GameLiftUnrealMatchmaker
+        RuleSetName:
+          Fn::GetAtt:
+            - MatchmakerMatchmakingRuleSet
+            - Name
+        FlexMatchMode: WITH_QUEUE
+        NotificationTarget:
+          Fn::GetAtt:
+            - MatchmakerSNS
+            - Arn
+        RequestTimeoutSeconds: 60
+
+    # GameSessionQueue
+    # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-gamelift-gamesessionqueue.html
+    MatchmakerGameSeessionQueue:
+      Type: AWS::GameLift::GameSessionQueue
+      Properties:
+        Name: GameLiftUnreal_Queue
+
+  Outputs:
+    apiGatewayRestApiId:
+      Value:
+        Ref: MatchmakerApiGW
+      Export:
+        Name: MatchmakerApiGateway-restApiId
+
+    apiGatewayRestApiRootResourceId:
+      Value:
+        Fn::GetAtt:
+          - MatchmakerApiGW
+          - RootResourceId
+      Export:
+        Name: MatchmakerApiGateway-rootResourceId
+
+    tablePlayers:
+      Value:
+        Ref: MatchmakerPlayersTable
+      Export:
+        Name: MatchmakerDynamoDB-Players
+    tablePlayersArn:
+      Value:
+        Fn::GetAtt:
+          - MatchmakerPlayersTable
+          - Arn
+      Export:
+        Name: MatchmakerDynamoDB-PlayersArn
+
+    tableTickets:
+      Value:
+        Ref: MatchmakerTicketsTable
+      Export:
+        Name: MatchmakerDynamoDB-Tickets
+    tableTicketsArn:
+      Value:
+        Fn::GetAtt:
+          - MatchmakerTicketsTable
+          - Arn
+      Export:
+        Name: MatchmakerDynamoDB-TicketsArn
+
+    cognitoUserPoolId:
+      Value:
+        Ref: MatchmakerCognitoUserPool
+      Export:
+        Name: MatchmakerCognito-UserPoolId
+
+    cognitoUserPoolArn:
+      Value:
+        Fn::GetAtt:
+          - MatchmakerCognitoUserPool
+          - Arn
+      Export:
+        Name: MatchmakerCognito-UserPoolArn
+
+    cognitoUserPoolClientId:
+      Value:
+        Ref: MatchmakerCognitoUserPoolClient
+      Export:
+        Name: MatchMakerCognito-UserPoolClientId
+
+    snsTopicName:
+      Value:
+        Ref: MatchmakerSNS
+      Export:
+        Name: MatchmakerSNS-NotificationTopicName

@@ -1,0 +1,28 @@
+service: login
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.9
+
+  region: ap-northeast-1
+
+  apiGateway:
+    restApiId: ${param:apiGatewayRestApiId}
+    restApiRootResourceId: ${param:apiGatewayRestApiRootResourceId}
+
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "cognito-idp:InitiateAuth"
+          Resource: ${param:cognitoUserPoolArn}
+
+  environment:
+    USER_POOL_APP_CLIENT_ID: ${param:cognitoUserPoolClientId}
+
+functions:
+  login:
+    handler: handler.lambda_handler
