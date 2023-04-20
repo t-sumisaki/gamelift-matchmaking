@@ -8,7 +8,7 @@ from datetime import datetime
 
 client = boto3.client("dynamodb")
 
-def handler(event, context):
+def lambda_handler(event, context):
 
     message = None
 
@@ -28,6 +28,8 @@ def handler(event, context):
         print("message is not gamelift matchmaking event")
         return
 
+    update_tickets(message["detail"])
+
 TICKET_UPDATE_TARGET = [
     "MatchmakingSucceeded",
     "MatchmakingTimeOut",
@@ -37,14 +39,14 @@ TICKET_UPDATE_TARGET = [
 
 TICKET_TABLE_NAME = os.getenv("TICKET_TABLE_NAME")
 
-def updateTickets(detail):
+def update_tickets(detail):
 
-    updateTickets = []
+    tickets = []
 
     if detail["type"] in TICKET_UPDATE_TARGET:
 
         for ticket in detail["tickets"]:
-            ticketItem = {
+            item = {
                 "Id": { "S": ticket["ticketId"]},
                 "Type": {"S": detail["type"]},
                 "TTL": {"N": str(math.floor(datetime.now().timestamp() / 1000) + 3600)}
@@ -52,7 +54,7 @@ def updateTickets(detail):
 
             if detail["type"] == "MatchmakingSucceed":
 
-                ticketItem["Players"] = {"L": []}
+                item["Players"] = {"L": []}
 
                 for player in ticket["players"]:
                     item = {
@@ -63,21 +65,21 @@ def updateTickets(detail):
                     if "playerSessionId" in player:
                         item["M"]["playerSessionId"] = {"S": player["playerSessionId"]}
                     
-                    ticketItem["Players"]["L"].append(item)
+                    item["Players"]["L"].append(item)
                 
-                ticketItem["GameSessionInfo"] = {
+                item["GameSessionInfo"] = {
                     "M": {
                         "IpAddress": {"S": detail["gameSessionInfo"]["ipAddress"]},
                         "Port": {"N": str(detail["gameSessionInfo"]["port"])},
                     }
                 }
             
-            updateTickets.append(ticketItem)
+            tickets.append(item)
     
     try:
         resp = client.batch_write_item(
             RequestItems={
-                "${TICKET_TABLE_NAME}": [ {"PutRequest": { "Item": d }} for d in updateTickets ]
+                "${TICKET_TABLE_NAME}": [ {"PutRequest": { "Item": d }} for d in tickets ]
             }
         )
     except client.exceptions.ProvisionedThroughputExceededException as e:

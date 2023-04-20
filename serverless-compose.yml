@@ -2,8 +2,8 @@ services:
   resources:
     path: resources
 
-  login:
-    path: login
+  matchmaking:
+    path: matchmaking
     dependsOn:
       - resources
     params:
@@ -11,12 +11,8 @@ services:
       apiGatewayRestApiRootResourceId: ${resources.apiGatewayRestApiRootResourceId}
       cognitoUserPoolArn: ${resources.cognitoUserPoolArn}
       cognitoUserPoolClientId: ${resources.cognitoUserPoolClientId}
-
-  matchingevents:
-    path: matchingevents
-    dependsOn:
-      - resources
-    params:
       dynamodbTicketTable: ${resources.tableTickets}
       dynamodbTicketTableArn: ${resources.tableTicketsArn}
+      dynamodbPlayerTable: ${resources.tablePlayers}
+      dynamodbPlayerTableArn: ${resources.tablePlayersArn}
       snsNotificationTopic: ${resources.snsTopicName}

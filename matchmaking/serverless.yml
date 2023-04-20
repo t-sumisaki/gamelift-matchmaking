@@ -1,0 +1,88 @@
+service: matchmaking
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ap-northeast-1
+
+  apiGateway:
+    restApiId: ${param:apiGatewayRestApiId}
+    restApiRootResourceId: ${param:apiGatewayRestApiRootResourceId}
+
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:BatchWriteItem"
+            - "dynamodb:GetItem"
+          Resource:
+            - ${param:dynamodbTicketTableArn}
+            - ${param:dynamodbPlayerTableArn}
+        - Effect: "Allow"
+          Action:
+            - "cognito-idp:InitiateAuth"
+            - "cognito-idp:GetUser"
+          Resource: ${param:cognitoUserPoolArn}
+
+functions:
+  receive_notification:
+    handler: receive_notification.lambda_handler
+    events:
+      - sns: ${param:snsNotificationTopic}
+    environment:
+      TICKET_TABLE_NAME: ${param:dynamodbTicketTable}
+
+  healthcheck:
+    handler: healthcheck.lambda_handler
+    events:
+      - http:
+          method: get
+          path: /healthcheck
+
+  login:
+    handler: login.lambda_handler
+    events:
+      - http:
+          method: post
+          path: /login
+    environment:
+      USER_POOL_APP_CLIENT_ID: ${param:cognitoUserPoolClientId}
+
+  poll_matchmaking:
+    handler: poll_matchmaking.lambda_handler
+    events:
+      - http:
+          method: post
+          path: /pollmatchmaking
+          authorizer:
+            name: authorizer
+            arn: ${params:cognitoUserPoolArn}
+    environment:
+      TICKET_TABLE_NAME: ${param:dynamodbTicketTable}
+
+  start_matchmaking:
+    handler: start_matchmaking.lambda_handler
+    events:
+      - http:
+          method: post
+          path: /startmatchmaking
+          authorizer:
+            name: authorizer
+            arn: ${params:cognitoUserPoolArn}
+    environment:
+      PLAYERS_TABLE_NAME: ${param:dynamodbPlayerTable}
+
+  get_player_data:
+    handler: get_player_data.lambda_handler
+    events:
+      - http:
+          method: get
+          path: /getplayerdata
+          authorizer:
+            name: authorizer
+            arn: ${params:cognitoUserPoolArn}
+    environment:
+      PLAYERS_TABLE_NAME: ${param:dynamodbPlayerTable}

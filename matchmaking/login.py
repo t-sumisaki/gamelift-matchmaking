@@ -3,17 +3,14 @@ import json
 import os
 import sys
 
+from response_helper import create_response
+
 
 
 client = boto3.client("coginito-idp")
 
-def create_response(status, body):
-    return {
-        "statusCode": status,
-        "body": json.dumps(body)
-    }
 
-def handler(event, context):
+def lambda_handler(event, context):
 
     req = event.body
 
