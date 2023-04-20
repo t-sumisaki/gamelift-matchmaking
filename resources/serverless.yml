@@ -31,7 +31,7 @@ resources:
         UserPoolId:
           Ref: MatchmakerCognitoUserPool
         ClientName: GameLiftUnreal-LambdaLoginClient
-        ExplicitAuthFlow:
+        ExplicitAuthFlows:
           - ALLOW_USER_PASSWORD_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
         GenerateSecret: false
@@ -88,26 +88,28 @@ resources:
           AttributeName: TTL
           Enabled: true
 
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sns-topic.html
     MatchmakerSNS:
       Type: AWS::SNS::Topic
       Properties:
         TopicName: FlexMatchEventNotification
         DisplayName: FlexMatchEventNotification
-        FifoTopic: true
+        FifoTopic: false
 
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-sns-policy.html
     MatchmakerSNSPolicy:
       Type: AWS::SNS::TopicPolicy
       Properties:
         PolicyDocument:
-          Effect: Allow
-          Principal:
-            Service: gamelift.amazonaws.com
-          Action:
-            - SNS:Publish
-          Resource:
-            Fn::GetAtt:
-              - MatchmakerSNS
-              - Arn
+          Id: matchmakerSNSPolicy
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: gamelift.amazonaws.com
+              Action:
+                - sns:Publish
+              Resource:
+                - Ref: MatchmakerSNS
         Topics:
           - Ref: MatchmakerSNS
 
@@ -134,23 +136,26 @@ resources:
       Type: AWS::GameLift::MatchmakingConfiguration
       Properties:
         Name: GameLiftUnrealMatchmaker
+        AcceptanceRequired: false
         RuleSetName:
           Fn::GetAtt:
             - MatchmakerMatchmakingRuleSet
             - Name
         FlexMatchMode: WITH_QUEUE
+        GameSessionQueueArns:
+          - Fn::GetAtt:
+              - MatchmakerGameSessionQueue
+              - Arn
         NotificationTarget:
-          Fn::GetAtt:
-            - MatchmakerSNS
-            - Arn
+          Ref: MatchmakerSNS
         RequestTimeoutSeconds: 60
 
     # GameSessionQueue
     # https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-gamelift-gamesessionqueue.html
-    MatchmakerGameSeessionQueue:
+    MatchmakerGameSessionQueue:
       Type: AWS::GameLift::GameSessionQueue
       Properties:
-        Name: GameLiftUnreal_Queue
+        Name: GameLiftUnreal-Queue
 
   Outputs:
     apiGatewayRestApiId:

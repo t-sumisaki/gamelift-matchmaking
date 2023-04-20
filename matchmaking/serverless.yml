@@ -28,7 +28,7 @@ provider:
           Resource: ${param:cognitoUserPoolArn}
 
 functions:
-  receive_notification:
+  receiveNotification:
     handler: receive_notification.lambda_handler
     events:
       - sns: ${param:snsNotificationTopic}
@@ -51,7 +51,7 @@ functions:
     environment:
       USER_POOL_APP_CLIENT_ID: ${param:cognitoUserPoolClientId}
 
-  poll_matchmaking:
+  pollMatchmaking:
     handler: poll_matchmaking.lambda_handler
     events:
       - http:
@@ -59,11 +59,11 @@ functions:
           path: /pollmatchmaking
           authorizer:
             name: authorizer
-            arn: ${params:cognitoUserPoolArn}
+            arn: ${param:cognitoUserPoolArn}
     environment:
       TICKET_TABLE_NAME: ${param:dynamodbTicketTable}
 
-  start_matchmaking:
+  startMatchmaking:
     handler: start_matchmaking.lambda_handler
     events:
       - http:
@@ -71,11 +71,11 @@ functions:
           path: /startmatchmaking
           authorizer:
             name: authorizer
-            arn: ${params:cognitoUserPoolArn}
+            arn: ${param:cognitoUserPoolArn}
     environment:
       PLAYERS_TABLE_NAME: ${param:dynamodbPlayerTable}
 
-  get_player_data:
+  getPlayerData:
     handler: get_player_data.lambda_handler
     events:
       - http:
@@ -83,6 +83,6 @@ functions:
           path: /getplayerdata
           authorizer:
             name: authorizer
-            arn: ${params:cognitoUserPoolArn}
+            arn: ${param:cognitoUserPoolArn}
     environment:
       PLAYERS_TABLE_NAME: ${param:dynamodbPlayerTable}
